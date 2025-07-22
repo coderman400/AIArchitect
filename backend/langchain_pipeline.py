@@ -72,33 +72,67 @@ def workflowdetail_to_reactflow(workflow: WorkflowDetail):
         prev_id = step_id
     return {"nodes": nodes, "edges": edges}
 
+def reactflow_to_workflowdetail(nodes, edges):
+    node_lookup = {node['id']: node for node in nodes}
+    children = {}
+    for node in nodes:
+        parent = node.get('parentNode')
+        if parent:
+            children.setdefault(parent, []).append(node['id'])
+    edge_map = {}
+    for edge in edges:
+        edge_map.setdefault(edge['source'], []).append(edge['target'])
+    def build_step(node_id):
+        node = node_lookup[node_id]
+        label = node['data']['label']
+        if ':' in label:
+            actor, action = label.split(':', 1)
+            actor = actor.strip()
+            action = action.strip()
+        else:
+            actor, action = '', label
+        substeps = [build_step(child_id) for child_id in children.get(node_id, [])]
+        return {
+            'actor': actor,
+            'action': action,
+            'substeps': substeps if substeps else None
+        }
+    top_level = [n['id'] for n in nodes if not n.get('parentNode')]
+    steps = [build_step(node_id) for node_id in top_level]
+    actors = list({step['actor'] for step in steps if step['actor']})
+    return {
+        'name': 'Reconstructed Workflow',
+        'actors': actors,
+        'steps': steps,
+    }
+
 # LangChain Gemini model
 model = init_chat_model("gemini-2.0-flash", model_provider="google_genai")
 
-def extract_workflow_summaries(texts: List[str], files: List[Any]) -> Optional[WorkflowSummary]:
+def extract_workflow_summaries(context: dict, files: List[Any]) -> Optional[WorkflowSummary]:
     parser = PydanticOutputParser(pydantic_object=WorkflowSummary)
     prompt = PromptTemplate(
         template="""
-Given the following business process information (text, images, and PDFs), summarize the overall process as a single workflow. Provide its name and a short description. Return the result as a JSON object with 'name' and 'description' fields.
+Given the following business process information, summarize the overall process as a single workflow. Provide its name and a short description. Return the result as a JSON object with 'name' and 'description' fields.
 
-Business process information:
-{text}
-
+Department Function: {department_function}
+Team Size: {team_size}
+Budget: {budget}
+Description: {description}
 (Attached files may include images or PDFs.)
 
 JSON object:
 """,
-        input_variables=["text"]
+        input_variables=["department_function", "team_size", "budget", "description"]
     )
     multimodal_input = []
-    if texts:
-        multimodal_input.append("\n".join(texts))
+    formatted_prompt = prompt.format(**context)
+    multimodal_input.append(formatted_prompt)
     for f in files:
         content = f.file.read()
         mime = f.content_type or mimetypes.guess_type(f.filename)[0] or "application/octet-stream"
         multimodal_input.append({"mime_type": mime, "data": content})
-    formatted_prompt = prompt.format(text="\n".join(texts))
-    response = model.invoke([formatted_prompt] + multimodal_input)
+    response = model.invoke(multimodal_input)
     try:
         summary = parser.parse(response.content)
         return summary
@@ -142,9 +176,9 @@ JSON object:
         detail = WorkflowDetail(name=summary.name, actors=[], steps=[])
     return detail
 
-def multimodal_pipeline(texts: List[str], images: List[Any], pdfs: List[Any]) -> Dict[str, Any]:
+def multimodal_pipeline(context: dict, images: List[Any], pdfs: List[Any]) -> Dict[str, Any]:
     files = (images or []) + (pdfs or [])
-    summary = extract_workflow_summaries(texts, files)
+    summary = extract_workflow_summaries(context, files)
     if summary:
         detail = extract_workflow_details(summary)
         return workflowdetail_to_reactflow(detail)
