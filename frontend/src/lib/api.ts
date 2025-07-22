@@ -8,8 +8,8 @@ import type {
 
 // API Configuration
 const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:8000/api";
-const API_TIMEOUT = 30000; // 30 seconds
+  import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_TIMEOUT = 99999999;
 
 // Create Axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -33,7 +33,7 @@ apiClient.interceptors.request.use(
     }
 
     // Log request in development
-    if (process.env.NODE_ENV === "development") {
+    if (import.meta.env.DEV) {
       console.log("API Request:", {
         method: config.method?.toUpperCase(),
         url: config.url,
@@ -53,7 +53,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     // Log response in development
-    if (process.env.NODE_ENV === "development") {
+    if (import.meta.env.DEV) {
       console.log("API Response:", {
         status: response.status,
         url: response.config.url,

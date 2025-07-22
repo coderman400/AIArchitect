@@ -47,23 +47,38 @@ const TextInputForm: React.FC = () => {
     setError(null);
 
     try {
-      // Send POST request to /orgview/generate with form data
-      const response = await api.post("/orgview/generate", {
-        department_function: formData.departmentFunction,
-        team_size: parseInt(formData.teamSize),
-        budget: formData.quarterlyBudget,
-        description: formData.description,
+      // Create FormData object
+      const formDataToSend = new FormData();
+      formDataToSend.append("department_function", formData.departmentFunction);
+      formDataToSend.append("team_size", formData.teamSize);
+      formDataToSend.append("budget", formData.quarterlyBudget);
+      formDataToSend.append("description", formData.description);
+
+      // Send POST request to /orgview/generate with FormData using raw axios
+      const response = await api.raw.post("/orgview/generate", formDataToSend, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
 
-      console.log("Workflow generation response:", response);
+      console.log("Workflow generation response:", response.data);
 
       // Store the generated workflow data in sessionStorage
-      if (response && (response.nodes || response.edges)) {
-        sessionStorage.setItem("generatedWorkflow", JSON.stringify(response));
+      // The workflow data is nested in response.data.react_flow_json
+      if (
+        response.data &&
+        response.data.react_flow_json &&
+        (response.data.react_flow_json.nodes ||
+          response.data.react_flow_json.edges)
+      ) {
+        sessionStorage.setItem(
+          "generatedWorkflow",
+          JSON.stringify(response.data.react_flow_json)
+        );
       }
 
       // Navigate to flows page after successful submission
-      navigate("/flows");
+      navigate("/apps/flows");
     } catch (err: any) {
       console.error("Error generating workflow:", err);
       setError(

@@ -11,15 +11,23 @@ const Flows: React.FC = () => {
   useEffect(() => {
     // Check if there's generated workflow data in sessionStorage
     const storedWorkflow = sessionStorage.getItem("generatedWorkflow");
+    console.log("Stored workflow raw:", storedWorkflow);
     if (storedWorkflow) {
       try {
         const parsedWorkflow = JSON.parse(storedWorkflow);
+        console.log("Parsed workflow:", parsedWorkflow);
         setGeneratedWorkflow(parsedWorkflow);
       } catch (error) {
         console.error("Error parsing stored workflow:", error);
       }
     }
   }, []);
+
+  console.log("Generated workflow state:", generatedWorkflow);
+  console.log(
+    "Workflow data being passed to FlowCard:",
+    generatedWorkflow || workflowData
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">
@@ -29,6 +37,7 @@ const Flows: React.FC = () => {
           <h1 className="text-4xl font-bold mb-8">Flows</h1>
           <div className="grid grid-cols-2 gap-4">
             <FlowCard
+              key={generatedWorkflow ? "generated" : "default"}
               title={
                 generatedWorkflow ? "Generated Workflow" : "Sales Lead Workflow"
               }
