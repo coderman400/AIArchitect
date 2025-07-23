@@ -24,7 +24,7 @@ const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const hardcodedToken =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ODdmY2RlMzQ2OWI3OTE0Nzk2MTZjZjEiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJleHAiOjE3NTM4MTcyMzB9.u_smX1L2tRvaG_vjNwTzs-H7hQJiALFtOOvQ6l-H_9c";
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ODgxMWRiMmEyNTQyYTA3NWQ0NDdjYzciLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJleHAiOjE3NTM4OTcwODN9.0W9i9lopOZENnSMyOsu7EI1_6qnzyCwRceZKBFAICq8";
 
     // Add auth token if available (fallback to localStorage for future use)
     const token = hardcodedToken || localStorage.getItem("authToken");

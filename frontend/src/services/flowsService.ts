@@ -4,7 +4,6 @@ import api from "../lib/api";
 export interface Flow {
   id: string;
   name: string;
-  status: "Active" | "Draft" | "Inactive";
   description?: string;
   createdAt: string;
   updatedAt: string;
@@ -19,10 +18,12 @@ export interface CreateFlowRequest {
   workflowDescription: string;
 }
 
-export interface FlowsResponse {
-  flows: Flow[];
-  total: number;
-}
+export interface FlowsResponse
+  extends Array<{
+    project_id: string;
+    name: string;
+    description: string;
+  }> {}
 
 export interface AnalyticsData {
   totalFlows: number;
@@ -31,16 +32,46 @@ export interface AnalyticsData {
   costBenefit: string;
 }
 
+export interface FlowWorkflowData {
+  nodes: Array<{
+    id: string;
+    type: string;
+    position: { x: number; y: number };
+    data: {
+      label: string;
+      nodeType?: string;
+      description?: string;
+    };
+    parentNode?: string;
+    extent?: string;
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    type?: string;
+    label?: string;
+    animated?: boolean;
+  }>;
+}
+
+export interface FlowApiResponse {
+  react_flow_json: FlowWorkflowData;
+  ai_react_flow_json: FlowWorkflowData;
+}
+
 // Flows API service
 export const flowsService = {
   // Get all flows
-  getFlows: async (): Promise<FlowsResponse> => {
-    return api.get<FlowsResponse>("/flows");
+  getFlows: async (): Promise<any> => {
+    const response = await api.raw.get("/flows");
+    return response.data;
   },
 
   // Get single flow by ID
-  getFlow: async (id: string): Promise<Flow> => {
-    return api.get<Flow>(`/flows/${id}`);
+  getFlow: async (id: string): Promise<FlowApiResponse> => {
+    const response = await api.raw.get(`/orgview/retrieve/${id}`);
+    return response.data;
   },
 
   // Create new flow

@@ -77,8 +77,13 @@ const TextInputForm: React.FC = () => {
         );
       }
 
-      // Navigate to flows page after successful submission
-      navigate("/apps/flows");
+      // Navigate to the specific flow dashboard using the returned project_id
+      if (response.data && response.data.project_id) {
+        navigate(`/apps/flows/${response.data.project_id}`);
+      } else {
+        // Fallback to flows listing page if no project_id is returned
+        navigate("/apps/flows");
+      }
     } catch (err: any) {
       console.error("Error generating workflow:", err);
       setError(

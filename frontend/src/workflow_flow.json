@@ -4,7 +4,9 @@
       "id": "be2cda07-b5c6-4162-8017-f6b14a65a75d",
       "type": "default",
       "data": {
-        "label": "Sales Representative: Review Inbound Lead"
+        "label": "Sales Representative: Review Inbound Lead",
+        "nodeType": "hubspot",
+        "description": "This node is used to review inbound leads from Hubspot."
       },
       "position": {
         "x": 0,

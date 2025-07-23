@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import type { Node, Edge, Connection } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import CustomNode from "./nodes/CustomNode";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -37,7 +38,12 @@ interface WorkflowData {
     id: string;
     type: string;
     position: { x: number; y: number };
-    data: { label: string };
+    data: {
+      label: string;
+      nodeType?: string;
+      status?: string;
+      description?: string;
+    };
     parentNode?: string;
     extent?: string;
   }>;
@@ -57,32 +63,34 @@ interface FlowCardProps {
   workflowData: WorkflowData;
   height?: string;
   className?: string;
+  editable?: boolean;
 }
 
-const FlowEditor: React.FC<{ workflowData: WorkflowData; height: string }> = ({
-  workflowData,
-  height,
-}) => {
+// Define custom node types
+const nodeTypes = {
+  custom: CustomNode,
+  default: CustomNode,
+};
+
+const FlowEditor: React.FC<{
+  workflowData: WorkflowData;
+  height: string;
+  editable: boolean;
+}> = ({ workflowData, height, editable }) => {
   // Load nodes and edges from the provided workflow data
   const initialNodes: Node[] = useMemo(() => {
     return workflowData.nodes.map((node) => ({
       id: node.id,
-      type: node.type,
+      type: "custom", // Use our custom node type
       position: node.position,
-      data: node.data,
+      data: {
+        ...node.data,
+        // Default values if not provided by backend
+        nodeType: node.data.nodeType || "default",
+        status: node.data.status || "active",
+      },
       ...(node.parentNode && { parentNode: node.parentNode }),
       ...(node.extent && { extent: node.extent as "parent" }),
-      style: {
-        background: "#121212",
-        border: node.parentNode ? "2px solid #0ea5e9" : "2px solid #6366f1",
-        borderRadius: "8px",
-        padding: "12px",
-        fontSize: "12px",
-        width: "220px",
-        color: "#ffffff",
-        fontWeight: "500",
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-      },
     }));
   }, [workflowData]);
 
@@ -310,25 +318,30 @@ const FlowEditor: React.FC<{ workflowData: WorkflowData; height: string }> = ({
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeDoubleClick={onNodeDoubleClick}
-          onEdgeDoubleClick={onEdgeDoubleClick}
-          onNodesDelete={onNodesDelete}
-          onEdgesDelete={onEdgesDelete}
-          nodesDraggable={true}
+          nodeTypes={nodeTypes}
+          onNodesChange={editable ? onNodesChange : undefined}
+          onEdgesChange={editable ? onEdgesChange : undefined}
+          onConnect={editable ? onConnect : undefined}
+          onNodeDoubleClick={editable ? onNodeDoubleClick : undefined}
+          onEdgeDoubleClick={editable ? onEdgeDoubleClick : undefined}
+          onNodesDelete={editable ? onNodesDelete : undefined}
+          onEdgesDelete={editable ? onEdgesDelete : undefined}
+          nodesDraggable={editable}
+          nodesConnectable={editable}
+          elementsSelectable={editable}
           fitView
           fitViewOptions={{
             padding: 0.1,
           }}
         >
           <Background />
-          <Panel position="top-right" className="space-x-2">
-            <Button onClick={openAddNodeDialog} size="sm">
-              Add Node
-            </Button>
-          </Panel>
+          {editable && (
+            <Panel position="top-right" className="space-x-2">
+              <Button onClick={openAddNodeDialog} size="sm">
+                Add Node
+              </Button>
+            </Panel>
+          )}
         </ReactFlow>
       </div>
 
@@ -465,6 +478,7 @@ const FlowCard: React.FC<FlowCardProps> = ({
   workflowData,
   height = "h-[600px]",
   className = "",
+  editable = true,
 }) => {
   return (
     <div
@@ -473,16 +487,14 @@ const FlowCard: React.FC<FlowCardProps> = ({
       <div className="p-6 border-b border-border">
         <h2 className="text-2xl font-semibold mb-2">{title}</h2>
         <p className="text-muted-foreground">{description}</p>
-        <div className="mt-4 text-sm text-muted-foreground">
-          <p>
-            • Drag nodes to rearrange • Double-click nodes to edit/delete •
-            Double-click edges to edit/delete • Select nodes/edges and press
-            Delete key • Drag from node handles to create connections
-          </p>
-        </div>
+        <div className="mt-4 text-sm text-muted-foreground"></div>
       </div>
       <ReactFlowProvider>
-        <FlowEditor workflowData={workflowData} height={height} />
+        <FlowEditor
+          workflowData={workflowData}
+          height={height}
+          editable={editable}
+        />
       </ReactFlowProvider>
     </div>
   );

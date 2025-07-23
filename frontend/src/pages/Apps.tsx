@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Routes, Route, Link } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
+import { flowsService, type Flow } from "../services/flowsService";
 import {
   Plus,
   Workflow,
@@ -35,13 +36,36 @@ const Apps: React.FC = () => {
 };
 
 const AppsHome: React.FC = () => {
-  const totalFlows = 3;
+  const [flows, setFlows] = useState<Flow[]>([]);
+  const [loading, setLoading] = useState(true);
   const costBenefit = "$12,450";
-  const flows = [
-    { id: 1, name: "Customer Onboarding", status: "Active" },
-    { id: 2, name: "Invoice Processing", status: "Active" },
-    { id: 3, name: "Data Analysis", status: "Draft" },
-  ];
+
+  useEffect(() => {
+    const fetchFlows = async () => {
+      try {
+        setLoading(true);
+        const response = await flowsService.getFlows();
+        // Map API response to Flow interface
+        const mappedFlows: Flow[] = response.map((item: any) => ({
+          id: item.project_id,
+          name: item.name || "Unnamed Flow",
+          status: "Active" as const,
+          description: item.description || "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+        setFlows(mappedFlows);
+      } catch (error) {
+        console.error("Error fetching flows:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFlows();
+  }, []);
+
+  const totalFlows = flows.length;
 
   // Mock analytics data
   const monthlyLLMCalls = 15420;
@@ -155,28 +179,38 @@ const AppsHome: React.FC = () => {
             </Link>
 
             {/* Existing Flows */}
-            {flows.map((flow) => (
-              <div
-                key={flow.id}
-                className="bg-card rounded-lg p-6 border border-border hover:border-primary transition-colors cursor-pointer"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <h4 className="text-lg font-semibold">{flow.name}</h4>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      flow.status === "Active"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                    }`}
-                  >
-                    {flow.status}
-                  </span>
+            {loading ? (
+              // Loading skeleton
+              Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="bg-card rounded-lg p-6 border border-border animate-pulse"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="h-6 bg-muted rounded w-32"></div>
+                    <div className="h-5 bg-muted rounded w-16"></div>
+                  </div>
+                  <div className="h-4 bg-muted rounded w-48"></div>
                 </div>
-                <p className="text-muted-foreground text-sm">
-                  Flow {flow.id} - Click to view details
-                </p>
+              ))
+            ) : flows.length > 0 ? (
+              flows.map((flow) => (
+                <Link to={`/apps/flows/${flow.id}`} key={flow.id}>
+                  <div className="bg-card rounded-lg p-6 border border-border hover:border-primary transition-colors cursor-pointer">
+                    <div className="flex items-start justify-between mb-4">
+                      <h4 className="text-lg font-semibold">{flow.name}</h4>
+                    </div>
+                    <p className="text-muted-foreground text-sm">
+                      {flow.description || "Click to view details"}
+                    </p>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="bg-card rounded-lg p-6 border border-border col-span-full text-center">
+                <p className="text-muted-foreground">No flows found</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
