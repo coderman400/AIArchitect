@@ -9,7 +9,51 @@ import {
   type Flow,
   type AnalyticsData,
   type FlowApiResponse,
+  type IntegrationNode,
 } from "../services/flowsService";
+
+// Import the same SVG icons as CustomNode
+import GoogleSheetsIcon from "../assets/google-sheets-icon.svg";
+import GoogleCalendarIcon from "../assets/google-calendar-icon.svg";
+import ChatGPTIcon from "../assets/chatgpt-icon.svg";
+import ClaudeIcon from "../assets/claude-ai-icon.svg";
+import WebhookIcon from "../assets/webhook.svg";
+import NotionIcon from "../assets/notion-icon.svg";
+import HubspotIcon from "../assets/hubspot-icon.svg";
+import SlackIcon from "../assets/slack-icon.svg";
+import StripeIcon from "../assets/stripe-icon.svg";
+import GmailIcon from "../assets/gmail-icon.svg";
+import ToolsIcon from "../assets/tools-icon.svg";
+
+type NodeType =
+  | "webhook"
+  | "notion"
+  | "hubspot"
+  | "googleSheets"
+  | "googleCalendar"
+  | "chatgpt"
+  | "claude"
+  | "slack"
+  | "stripe"
+  | "gmail"
+  | "tools"
+  | "default";
+
+// Icon mapping (same as CustomNode)
+const iconMap: Record<NodeType, string | null> = {
+  webhook: WebhookIcon,
+  notion: NotionIcon,
+  hubspot: HubspotIcon,
+  googleSheets: GoogleSheetsIcon,
+  googleCalendar: GoogleCalendarIcon,
+  chatgpt: ChatGPTIcon,
+  claude: ClaudeIcon,
+  slack: SlackIcon,
+  stripe: StripeIcon,
+  gmail: GmailIcon,
+  tools: ToolsIcon,
+  default: ToolsIcon,
+};
 
 interface MetricCardProps {
   title: string;
@@ -31,35 +75,61 @@ const MetricCard: React.FC<MetricCardProps> = ({
   </div>
 );
 
-interface IntegrationNodeProps {
-  name: string;
-  type: string;
-  status: "active" | "inactive" | "error";
-}
-
-const IntegrationNode: React.FC<IntegrationNodeProps> = ({
+const IntegrationNodeComponent: React.FC<IntegrationNode> = ({
   name,
   type,
-  status,
+  description,
 }) => {
-  const statusDots = {
-    active: "bg-green-500",
-    inactive: "bg-gray-400",
-    error: "bg-red-500",
-  };
+  const IconComponent = iconMap[type as NodeType] || iconMap["default"];
+  const isToolsIcon = type === "tools" || type === "default";
 
   return (
     <div className="bg-card rounded-lg border border-border p-4 hover:shadow-sm transition-shadow">
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="font-medium text-sm">{name}</h4>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${statusDots[status]}`}></div>
-          <span className="text-xs text-muted-foreground capitalize">
-            {status}
-          </span>
-        </div>
+      <div className="flex items-center gap-3 mb-2">
+        {/* Icon */}
+        {IconComponent && (
+          <div className="flex-shrink-0">
+            {isToolsIcon ? (
+              <div
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "50%",
+                  backgroundColor: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <img
+                  src={IconComponent}
+                  alt={type}
+                  style={{
+                    width: "16px",
+                    height: "16px",
+                    display: "block",
+                  }}
+                />
+              </div>
+            ) : (
+              <img
+                src={IconComponent}
+                alt={type}
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  display: "block",
+                }}
+              />
+            )}
+          </div>
+        )}
+        {/* Title */}
+        <h4 className="font-medium text-sm flex-1">{name}</h4>
       </div>
-      <p className="text-xs text-muted-foreground">{type}</p>
+      {description !== "default" && (
+        <p className="text-xs text-muted-foreground/80 ml-9">{description}</p>
+      )}
     </div>
   );
 };
@@ -71,15 +141,9 @@ const FlowDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [aiWorkflow, setAiWorkflow] = useState<WorkflowData | null>(null);
   const [reactWorkflow, setReactWorkflow] = useState<WorkflowData | null>(null);
-
-  // Mock integration nodes data - replace with actual API call
-  const integrationNodes: IntegrationNodeProps[] = [
-    { name: "Salesforce CRM", type: "CRM Integration", status: "active" },
-    { name: "Slack Notifications", type: "Messaging", status: "active" },
-    { name: "Email Service", type: "Communication", status: "active" },
-    { name: "Analytics Database", type: "Data Storage", status: "inactive" },
-    { name: "Payment Gateway", type: "Financial", status: "error" },
-  ];
+  const [integrationNodes, setIntegrationNodes] = useState<IntegrationNode[]>(
+    []
+  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -124,6 +188,16 @@ const FlowDashboard: React.FC = () => {
             monthlyCost: "$247",
             costBenefit: "$12,500",
           });
+        }
+
+        // Fetch integration nodes
+        try {
+          const nodesData = await flowsService.getIntegrationNodes(projectId);
+          setIntegrationNodes(nodesData);
+        } catch (error) {
+          console.error("Error fetching integration nodes:", error);
+          // Use fallback empty array if API fails
+          setIntegrationNodes([]);
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -206,9 +280,7 @@ const FlowDashboard: React.FC = () => {
             />
             <MetricCard
               title="No. of Integrations"
-              value={integrationNodes
-                .filter((node) => node.status === "active")
-                .length.toString()}
+              value={integrationNodes.length.toString()}
               description={`${integrationNodes.length} total configured`}
             />
           </div>
@@ -218,11 +290,11 @@ const FlowDashboard: React.FC = () => {
             <h2 className="text-2xl font-semibold mb-4">Integration Nodes</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {integrationNodes.map((node, index) => (
-                <IntegrationNode
+                <IntegrationNodeComponent
                   key={index}
                   name={node.name}
                   type={node.type}
-                  status={node.status}
+                  description={node.description}
                 />
               ))}
             </div>

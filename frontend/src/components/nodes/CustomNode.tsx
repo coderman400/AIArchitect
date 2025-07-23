@@ -11,6 +11,10 @@ import ClaudeIcon from "../../assets/claude-ai-icon.svg";
 import WebhookIcon from "../../assets/webhook.svg";
 import NotionIcon from "../../assets/notion-icon.svg";
 import HubspotIcon from "../../assets/hubspot-icon.svg";
+import SlackIcon from "../../assets/slack-icon.svg";
+import StripeIcon from "../../assets/stripe-icon.svg";
+import GmailIcon from "../../assets/gmail-icon.svg";
+import ToolsIcon from "../../assets/tools-icon.svg";
 type NodeType =
   | "webhook"
   | "notion"
@@ -19,13 +23,16 @@ type NodeType =
   | "googleCalendar"
   | "chatgpt"
   | "claude"
+  | "slack"
+  | "stripe"
+  | "gmail"
+  | "tools"
   | "default";
 
 interface CustomNodeData {
   label: string;
   nodeType: NodeType;
   description?: string;
-  status?: "active" | "inactive" | "error";
 }
 
 // Icon mapping
@@ -37,7 +44,11 @@ const iconMap: Record<NodeType, string | null> = {
   googleCalendar: GoogleCalendarIcon,
   chatgpt: ChatGPTIcon,
   claude: ClaudeIcon,
-  default: null,
+  slack: SlackIcon,
+  stripe: StripeIcon,
+  gmail: GmailIcon,
+  tools: ToolsIcon,
+  default: ToolsIcon,
 };
 
 // Color mapping for different node types
@@ -50,6 +61,10 @@ const nodeColors: Record<NodeType, string> = {
   webhook: "#00A67E",
   notion: "#CC785C",
   hubspot: "#6366f1",
+  slack: "#00A67E",
+  stripe: "#6366f1",
+  gmail: "#CC785C",
+  tools: "#00A67E",
 };
 
 const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
@@ -64,48 +79,104 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
     setShowModal(true);
   };
 
-  // If there's an icon, render just the icon without any container
+  // If there's an icon, render the modern card with icon and label
   if (IconComponent) {
     return (
       <>
-        <div className="icon-only-node" style={{ position: "relative" }}>
+        <div
+          className={`modern-node-card ${selected ? "selected" : ""}`}
+          style={{
+            position: "relative",
+            background: "linear-gradient(135deg, #1f2937 0%, #111827 100%)",
+            border: selected ? `2px solid ${nodeColor}` : "1px solid #374151",
+            borderRadius: "12px",
+            padding: "12px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            minWidth: "160px",
+            boxShadow: selected
+              ? `0 4px 20px rgba(99, 102, 241, 0.3)`
+              : "0 2px 8px rgba(0, 0, 0, 0.4)",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            backdropFilter: "blur(10px)",
+          }}
+          onDoubleClick={handleDoubleClick}
+        >
           {/* Input Handle */}
           <Handle
             type="target"
-            position={Position.Left}
+            position={Position.Top}
             style={{
               background: nodeColor,
               width: "8px",
               height: "8px",
               border: "1px solid white",
-              left: "-4px",
+              top: "-4px",
             }}
           />
 
-          {/* Just the icon */}
-          <img
-            src={IconComponent}
-            alt={nodeData.nodeType}
+          {/* Icon */}
+          {nodeData.nodeType === "tools" || nodeData.nodeType === "default" ? (
+            <div
+              style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "50%",
+                backgroundColor: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <img
+                src={IconComponent}
+                alt={nodeData.nodeType}
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  display: "block",
+                }}
+              />
+            </div>
+          ) : (
+            <img
+              src={IconComponent}
+              alt={nodeData.nodeType}
+              style={{
+                width: "40px",
+                height: "40px",
+                display: "block",
+                flexShrink: 0,
+              }}
+            />
+          )}
+
+          {/* Label */}
+          <div
             style={{
-              width: "48px",
-              height: "48px",
-              display: "block",
-              cursor: "pointer",
+              color: "#ffffff",
+              fontSize: "14px",
+              fontWeight: "600",
+              letterSpacing: "-0.02em",
+              lineHeight: "1.2",
             }}
-            onDoubleClick={handleDoubleClick}
-            title="Double-click for details" // Tooltip hint
-          />
+          >
+            {nodeData.label}
+          </div>
 
           {/* Output Handle */}
           <Handle
             type="source"
-            position={Position.Right}
+            position={Position.Bottom}
             style={{
               background: nodeColor,
               width: "8px",
               height: "8px",
               border: "1px solid white",
-              right: "-4px",
+              bottom: "-4px",
             }}
           />
         </div>
@@ -147,7 +218,7 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
       {/* Input Handle */}
       <Handle
         type="target"
-        position={Position.Left}
+        position={Position.Top}
         style={{
           background: nodeColor,
           width: "12px",
@@ -183,7 +254,7 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
       {/* Output Handle */}
       <Handle
         type="source"
-        position={Position.Right}
+        position={Position.Bottom}
         style={{
           background: nodeColor,
           width: "12px",

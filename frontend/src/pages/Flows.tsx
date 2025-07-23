@@ -8,12 +8,6 @@ interface FlowListItemProps {
 }
 
 const FlowListItem: React.FC<FlowListItemProps> = ({ flow }) => {
-  const statusColors = {
-    Active: "bg-green-100 text-green-800 border-green-200",
-    Draft: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    Inactive: "bg-gray-100 text-gray-800 border-gray-200",
-  };
-
   return (
     <div className="bg-card rounded-lg border border-border p-6 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">

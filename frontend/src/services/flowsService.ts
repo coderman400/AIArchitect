@@ -60,6 +60,16 @@ export interface FlowApiResponse {
   ai_react_flow_json: FlowWorkflowData;
 }
 
+export interface IntegrationNode {
+  name: string;
+  type: string;
+  description: string;
+}
+
+export interface IntegrationNodesResponse {
+  node_list: IntegrationNode[];
+}
+
 // Flows API service
 export const flowsService = {
   // Get all flows
@@ -97,6 +107,14 @@ export const flowsService = {
   // Submit text input form
   submitTextInput: async (formData: CreateFlowRequest): Promise<Flow> => {
     return api.post<Flow>("/flows/text-input", formData);
+  },
+
+  // Get integration nodes for a specific flow
+  getIntegrationNodes: async (
+    projectId: string
+  ): Promise<IntegrationNode[]> => {
+    const response = await api.raw.get(`/orgview/integrations/${projectId}`);
+    return response.data.node_list;
   },
 };
 
