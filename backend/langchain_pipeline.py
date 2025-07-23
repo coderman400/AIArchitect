@@ -1,10 +1,11 @@
 from pydantic import BaseModel, Field, RootModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from langchain.chat_models import init_chat_model
 from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import PromptTemplate
 from datetime import datetime
 import mimetypes
+import json
 
 # Pydantic models
 class WorkflowSummary(BaseModel):
@@ -15,6 +16,8 @@ class Step(BaseModel):
     actor: str
     action: str
     substeps: Optional[List["Step"]] = None
+    ai_recommendation: Optional[Union[str, Dict[str, Any]]] = None  # Accept string or dict
+    type: Optional[str] = None  # For icon/visualization
 
 Step.model_rebuild()
 
@@ -36,16 +39,19 @@ class WorkflowSummaryList(RootModel[List[WorkflowSummary]]):
 # React Flow conversion
 import uuid
 
-def workflowdetail_to_reactflow(workflow: WorkflowDetail):
+def workflowdetail_to_reactflow(workflow):
     nodes = []
     edges = []
     def add_step_nodes(step, parent_id=None, depth=0):
         step_id = str(uuid.uuid4())
-        label = f"{step.actor}: {step.action}" if step.actor else step.action
         node = {
             "id": step_id,
             "type": "default",
-            "data": {"label": label},
+            "data": {
+                "label": f"{step.actor}: {step.action}" if step.actor else step.action,
+                "nodeType": getattr(step, "type", None),
+                "description": getattr(step, "ai_recommendation", None)
+            },
             "position": {"x": depth * 200, "y": len(nodes) * 100},
         }
         if parent_id:
@@ -53,7 +59,7 @@ def workflowdetail_to_reactflow(workflow: WorkflowDetail):
             node["extent"] = "parent"
         nodes.append(node)
         last_id = step_id
-        if step.substeps:
+        if getattr(step, "substeps", None):
             prev_sub_id = None
             for sub in step.substeps:
                 sub_id = add_step_nodes(sub, parent_id=step_id, depth=depth+1)
@@ -148,7 +154,8 @@ def extract_workflow_details(summary: WorkflowSummary, context: str = "") -> Wor
 Given the following workflow summary, provide a detailed workflow structure as a JSON object with the following fields:
 - name: string
 - actors: list of strings (roles or people involved)
-- steps: list of objects with 'actor', 'action', and optional 'substeps' fields (use 'substeps' to group logically related or sequential steps by the same actor, or to represent nested/conditional actions)
+- steps: list of objects with 'actor', 'action', and optional 'substeps' fields.
+  Every step and substep must include both 'actor' and 'action' fields, even if the actor is the same as the parent.
 - inputs: list of strings (optional)
 - outputs: list of strings (optional)
 - connections: list of strings (names of related workflows, optional)
@@ -171,15 +178,102 @@ JSON object:
     try:
         detail = parser.parse(response.content)
     except Exception as e:
-        print(f"Error parsing workflow detail for {summary.name}:", e)
-        print("Raw response was:\n", response.content)
-        detail = WorkflowDetail(name=summary.name, actors=[], steps=[])
+        # Fallback: try to fill missing 'actor' in substeps
+        import json as pyjson
+        import copy
+        try:
+            data = pyjson.loads(response.content.strip('`\n '))
+            def fill_actors(steps, parent_actor=None):
+                for step in steps:
+                    if 'actor' not in step or not step['actor']:
+                        step['actor'] = parent_actor or ''
+                    if 'substeps' in step and step['substeps']:
+                        fill_actors(step['substeps'], step['actor'])
+            if 'steps' in data:
+                fill_actors(data['steps'])
+            detail = WorkflowDetail(**data)
+        except Exception as e2:
+            detail = WorkflowDetail(name=summary.name, actors=[], steps=[])
     return detail
 
-def multimodal_pipeline(context: dict, images: List[Any], pdfs: List[Any]) -> Dict[str, Any]:
+def multimodal_pipeline(context: dict, images: List[Any], pdfs: List[Any]):
     files = (images or []) + (pdfs or [])
     summary = extract_workflow_summaries(context, files)
     if summary:
         detail = extract_workflow_details(summary)
-        return workflowdetail_to_reactflow(detail)
-    return {"nodes": [], "edges": []} 
+        reactflow = workflowdetail_to_reactflow(detail)
+        return detail, reactflow
+    return None, {"nodes": [], "edges": []}
+
+
+def group_and_automate_workflow(workflow_json: dict, icon_list: Optional[list] = None) -> WorkflowDetail:
+    parser = PydanticOutputParser(pydantic_object=WorkflowDetail)
+    # icon_list is not used in the prompt anymore, but kept for compatibility
+    prompt = PromptTemplate(
+        template="""
+Available icons/types and their use cases:
+- chatgpt: LLM-powered text generation, email drafting, chatbots, summarization
+- claude: LLM-powered document analysis, contract review
+- googleCalendar: Scheduling meetings, calendar invites, reminders
+- googleSheets: Data entry, reporting, spreadsheet automation
+- hubspot: CRM automation, lead management, sales pipeline
+- salesforce: CRM automation, customer data management
+
+Example 1:
+Original steps:
+- "Send welcome email to customer"
+- "Draft personalized onboarding message"
+AI pipeline node:
+{{
+  "actor": "AI System",
+  "action": "Automated Onboarding Email",
+  "type": "chatgpt",
+  "ai_recommendation": "Use chatgpt to draft and send personalized onboarding emails to new customers, replacing manual drafting and sending."
+}}
+
+Example 2:
+Original steps:
+- "Schedule onboarding meeting"
+- "Send calendar invite"
+AI pipeline node:
+{{
+  "actor": "AI System",
+  "action": "Automated Meeting Scheduling",
+  "type": "googleCalendar",
+  "ai_recommendation": "Use googleCalendar integration to automatically schedule onboarding meetings and send invites."
+}}
+
+Given the following business workflow, your goal is to produce the most compact, high-level AI-augmented workflow possible. Group as many consecutive or logically related automatable steps as possible into a single AI pipeline node. Assign the most appropriate 'type' from the available icons/types list for each AI node, based on the examples above. Only keep manual steps as separate nodes if they cannot be automated or grouped. The output workflow should be as simple and high-level as possible, while preserving the overall process logic.
+
+Workflow:
+{workflow_json}
+
+JSON object:
+""",
+        input_variables=["workflow_json"]
+    )
+    formatted_prompt = prompt.format(workflow_json=json.dumps(workflow_json, indent=2))
+    response = model.invoke(formatted_prompt)
+    def stringify_ai_recommendation(step):
+        if isinstance(step.get('ai_recommendation'), dict):
+            d = step['ai_recommendation']
+            step['ai_recommendation'] = f"{d.get('type', '')}: {d.get('description', '')} (Replaces: {d.get('replaced_steps', '')})"
+        if step.get('substeps'):
+            for sub in step['substeps']:
+                stringify_ai_recommendation(sub)
+    try:
+        detail = parser.parse(response.content)
+    except Exception as e:
+        print("Pydantic parse error:", e)
+        print("Raw response was:\n", response.content)
+        import json as pyjson
+        try:
+            data = pyjson.loads(response.content.strip('`\n '))
+            if 'steps' in data:
+                for step in data['steps']:
+                    stringify_ai_recommendation(step)
+            detail = WorkflowDetail(**data)
+        except Exception as e2:
+            print("Fallback parse error:", e2)
+            detail = None
+    return detail 
