@@ -22,5 +22,6 @@ class OrgViewModel(BaseModel):
     react_flow_json: Dict[str, Any]
     workflow_json: Optional[Dict[str, Any]] = None
     ai_workflow_json: Optional[Dict[str, Any]] = None  # New field for AI-augmented workflow
+    node_list: Optional[list] = None  # List of integration nodes (name, type, description)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None 

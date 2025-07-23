@@ -64,6 +64,18 @@ JSON object:
         ai_workflow_detail = group_and_automate_workflow(workflow_json) if workflow_json else None
         ai_workflow_json = ai_workflow_detail.model_dump() if ai_workflow_detail else None
         ai_react_flow_json = workflowdetail_to_reactflow(ai_workflow_detail) if ai_workflow_detail else {"nodes": [], "edges": []}
+        # Extract node_list from ai_react_flow_json
+        node_list = []
+        for node in ai_react_flow_json.get("nodes", []):
+            data = node.get("data", {})
+            node_type = data.get("nodeType")
+            if node_type is None:
+                node_type = "default"
+            node_list.append({
+                "name": data.get("label"),
+                "type": node_type,
+                "description": data.get("description")
+            })
         project = ProjectModel(user_id=user_id, name=project_name, description=project_desc, created_by=user_id, created_at=datetime.utcnow())
         project_dict = project.dict(by_alias=True, exclude={"id"})
         project_result = await db.projects.insert_one(project_dict)
@@ -73,6 +85,7 @@ JSON object:
             react_flow_json=react_flow_json,
             workflow_json=workflow_json,
             ai_workflow_json=ai_workflow_json,
+            node_list=node_list,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -105,3 +118,4 @@ JSON object:
         if original.get('steps') and patched.get('steps'):
             patch_steps(original['steps'], patched['steps'])
         return patched 
+

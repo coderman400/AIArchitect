@@ -122,4 +122,14 @@ async def retrieve_orgviews(
     return {
         "react_flow_json": orgview.get("react_flow_json"),
         "ai_react_flow_json": workflowdetail_to_reactflow(group_and_automate_workflow(orgview.get("workflow_json"))) if orgview.get("workflow_json") else {"nodes": [], "edges": []}
-    } 
+    }
+
+@app.get("/orgview/integrations/{project_id}")
+async def get_integration_nodes(
+    project_id: str,
+    user=Depends(get_current_user)
+):
+    orgview = await db.orgviews.find_one({"project_id": project_id})
+    if not orgview:
+        return {"error": "OrgView not found for this project."}
+    return {"node_list": orgview.get("node_list", [])} 

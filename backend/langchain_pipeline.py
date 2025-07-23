@@ -48,7 +48,7 @@ def workflowdetail_to_reactflow(workflow):
             "id": step_id,
             "type": "default",
             "data": {
-                "label": f"{step.actor}: {step.action}" if step.actor else step.action,
+                "label": f"{step.action}",
                 "nodeType": getattr(step, "type", None),
                 "description": getattr(step, "ai_recommendation", None)
             },
@@ -113,7 +113,7 @@ def reactflow_to_workflowdetail(nodes, edges):
     }
 
 # LangChain Gemini model
-model = init_chat_model("gemini-2.0-flash", model_provider="google_genai")
+model = init_chat_model("gemini-2.5-flash", model_provider="google_genai")
 
 def extract_workflow_summaries(context: dict, files: List[Any]) -> Optional[WorkflowSummary]:
     parser = PydanticOutputParser(pydantic_object=WorkflowSummary)
@@ -206,74 +206,82 @@ def multimodal_pipeline(context: dict, images: List[Any], pdfs: List[Any]):
     return None, {"nodes": [], "edges": []}
 
 
-def group_and_automate_workflow(workflow_json: dict, icon_list: Optional[list] = None) -> WorkflowDetail:
-    parser = PydanticOutputParser(pydantic_object=WorkflowDetail)
+class CompactStep(BaseModel):
+    actor: str
+    action: str
+    type: str
+    ai_recommendation: Optional[str] = None
+
+class CompactWorkflow(BaseModel):
+    name: str
+    actors: List[str]
+    steps: List[CompactStep]
+
+def group_and_automate_workflow(workflow_json: dict, icon_list: Optional[list] = None) -> CompactWorkflow:
     # icon_list is not used in the prompt anymore, but kept for compatibility
     prompt = PromptTemplate(
         template="""
-Available icons/types and their use cases:
-- chatgpt: LLM-powered text generation, email drafting, chatbots, summarization
-- claude: LLM-powered document analysis, contract review
-- googleCalendar: Scheduling meetings, calendar invites, reminders
-- googleSheets: Data entry, reporting, spreadsheet automation
-- hubspot: CRM automation, lead management, sales pipeline
-- salesforce: CRM automation, customer data management
+Available Node Types
+Use ONLY these specific types for the 'type' field in each AI pipeline node:
 
-Example 1:
-Original steps:
-- "Send welcome email to customer"
-- "Draft personalized onboarding message"
-AI pipeline node:
-{{
-  "actor": "AI System",
-  "action": "Automated Onboarding Email",
-  "type": "chatgpt",
-  "ai_recommendation": "Use chatgpt to draft and send personalized onboarding emails to new customers, replacing manual drafting and sending."
-}}
+notion: Notion workspace automation, notes, docs
+hubspot: CRM automation, lead management, sales pipeline
+googleSheets: Data entry, reporting, spreadsheet automation
+googleCalendar: Scheduling meetings, calendar invites, reminders
+chatgpt: LLM-powered text generation, email drafting, chatbots, summarization
+claude: LLM-powered document analysis, contract review
+slack: Team chat, notifications, workflow triggers
+stripe: Payments, invoicing, billing automation
+gmail: Email sending, triage, notifications
+tools: General utility or custom tool
+default: Use if no specific integration applies
 
-Example 2:
-Original steps:
-- "Schedule onboarding meeting"
-- "Send calendar invite"
-AI pipeline node:
-{{
-  "actor": "AI System",
-  "action": "Automated Meeting Scheduling",
-  "type": "googleCalendar",
-  "ai_recommendation": "Use googleCalendar integration to automatically schedule onboarding meetings and send invites."
-}}
+Critical Requirements
+1. One Type Per Node Rule
 
-Given the following business workflow, your goal is to produce the most compact, high-level AI-augmented workflow possible. Group as many consecutive or logically related automatable steps as possible into a single AI pipeline node. Assign the most appropriate 'type' from the available icons/types list for each AI node, based on the examples above. Only keep manual steps as separate nodes if they cannot be automated or grouped. The output workflow should be as simple and high-level as possible, while preserving the overall process logic.
+Each node MUST use exactly ONE type from the list above
+NEVER combine multiple types in a single node (e.g., "googleSheets + claude")
+If a step requires multiple integrations, create separate nodes for each type
+
+2. Complete Step Coverage
+
+Include ALL steps from the original workflow JSON
+Do NOT skip, omit, or merge steps that serve different purposes
+Preserve the logical flow and sequence of the original workflow
+
+3. Node Structure
+
+Each node must be a single, flat object with no substeps
+Keep descriptions focused on the PRIMARY function of that specific integration type
+
+4. Type Selection Logic
+
+Choose the MOST APPROPRIATE single type for each step's primary function
+If a step involves multiple integrations, split into separate nodes:
+
+Example: If a step requires "data analysis in sheets then email via gmail"
+Create: Node 1 (googleSheets) + Node 2 (claude) + Node 3 (gmail)
+
+
+
+Your Task
+Transform the given workflow JSON into the shortest possible AI-augmented workflow that:
+
+Addresses every step from the original workflow
+Uses only the specified node types (one per node)
+Use AI for personalization, summarization, and other tasks that can be done by AI before feeding to the next step
+Groups automatable steps logically without combining different integration types
+Maintains the essential process flow and logic
+Keeps manual steps separate only if they cannot be automated
+
 
 Workflow:
 {workflow_json}
-
-JSON object:
 """,
         input_variables=["workflow_json"]
     )
     formatted_prompt = prompt.format(workflow_json=json.dumps(workflow_json, indent=2))
-    response = model.invoke(formatted_prompt)
-    def stringify_ai_recommendation(step):
-        if isinstance(step.get('ai_recommendation'), dict):
-            d = step['ai_recommendation']
-            step['ai_recommendation'] = f"{d.get('type', '')}: {d.get('description', '')} (Replaces: {d.get('replaced_steps', '')})"
-        if step.get('substeps'):
-            for sub in step['substeps']:
-                stringify_ai_recommendation(sub)
-    try:
-        detail = parser.parse(response.content)
-    except Exception as e:
-        print("Pydantic parse error:", e)
-        print("Raw response was:\n", response.content)
-        import json as pyjson
-        try:
-            data = pyjson.loads(response.content.strip('`\n '))
-            if 'steps' in data:
-                for step in data['steps']:
-                    stringify_ai_recommendation(step)
-            detail = WorkflowDetail(**data)
-        except Exception as e2:
-            print("Fallback parse error:", e2)
-            detail = None
-    return detail 
+    # Use LangChain's with_structured_output for parsing
+    structured_model = model.with_structured_output(CompactWorkflow)
+    response = structured_model.invoke(formatted_prompt)
+    return response 
